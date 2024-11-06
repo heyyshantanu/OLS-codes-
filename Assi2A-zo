@@ -1,0 +1,92 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+// Bubble sort for the parent process
+void bubbleSort(int arr[], int n) {
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = 0; j < n - i - 1; j++) {
+            if (arr[j] > arr[j + 1]) {
+                int temp = arr[j];
+                arr[j] = arr[j + 1];
+                arr[j + 1] = temp;
+            }
+        }
+    }
+}
+
+// Selection sort for the child process
+void selectionSort(int arr[], int n) {
+    for (int i = 0; i < n - 1; i++) {
+        int minIdx = i;
+        for (int j = i + 1; j < n; j++) {
+            if (arr[j] < arr[minIdx]) {
+                minIdx = j;
+            }
+        }
+        int temp = arr[minIdx];
+        arr[minIdx] = arr[i];
+        arr[i] = temp;
+    }
+}
+
+int main() {
+    int n;
+    printf("Enter number of elements: ");
+    scanf("%d", &n);
+
+    int arr[n];
+    printf("Enter the integers to be sorted:\n");
+    for (int i = 0; i < n; i++) {
+        scanf("%d", &arr[i]);
+    }
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        // Fork failed
+        perror("Fork failed");
+        return 1;
+    }
+    
+    if (pid > 0) {
+        // Parent process: bubble sort
+        printf("Parent process sorting using Bubble Sort...\n");
+        bubbleSort(arr, n);
+
+        printf("Parent sorted array: ");
+        for (int i = 0; i < n; i++) {
+            printf("%d ", arr[i]);
+        }
+        printf("\n");
+
+        // Wait for the child process to finish
+        printf("Parent waiting for child process to finish...\n");
+        wait(NULL);  // Collects the child's exit status
+
+        printf("Parent finished waiting. Child process should now be cleaned up.\n");
+
+        // Simulate zombie process (by sleeping before the parent exits)
+        sleep(2);  // Parent sleeps to give time for the child to become zombie
+
+    } else {
+        // Child process: selection sort
+        printf("Child process sorting using Selection Sort...\n");
+        selectionSort(arr, n);
+
+        printf("Child sorted array: ");
+        for (int i = 0; i < n; i++) {
+            printf("%d ", arr[i]);
+        }
+        printf("\n");
+
+        // Simulate orphan state (child exits without waiting for parent)
+        // Note: The child process becomes orphan if the parent exits before it finishes.
+        printf("Child process is exiting...\n");
+        exit(0);  // Child exits immediately, and will be orphaned if parent is already terminated
+    }
+
+    return 0;
+}
