@@ -1,0 +1,97 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+void *writer_thr(void *temp);
+void *reader_thr(void *temp);
+
+sem_t mutex;  // Protects access to readcount
+sem_t wrt;    // Protects writers
+
+int readcount = 0; // Number of readers currently reading
+int nwt, nrd;      // Number of writers and readers
+
+void *reader_thr(void *temp) {
+    int reader_id = *((int *)temp);
+    printf("\nReader %d is trying to enter the database for reading.", reader_id);
+    
+    sem_wait(&mutex);  // Enter critical section to modify readcount
+    readcount++;
+    if (readcount == 1) {
+        sem_wait(&wrt);  // First reader blocks writers
+    }
+    sem_post(&mutex);  // Exit critical section
+
+    printf("\nReader %d is now reading in the database.", reader_id);
+    sleep(3); // Simulate reading time
+
+    sem_wait(&mutex);  // Enter critical section to modify readcount
+    readcount--;
+    if (readcount == 0) {
+        sem_post(&wrt);  // Last reader releases the writer lock
+    }
+    sem_post(&mutex);  // Exit critical section
+
+    printf("\nReader %d has left the database.\n", reader_id);
+    return NULL;
+}
+
+void *writer_thr(void *temp) {
+    int writer_id = *((int *)temp);
+    printf("\nWriter %d is trying to enter the database for modifying data.", writer_id);
+
+    sem_wait(&wrt);  // Block writers while there's a writer
+
+    printf("\nWriter %d is writing in the database.", writer_id);
+    sleep(3); // Simulate writing time
+
+    printf("\nWriter %d is leaving the database.\n", writer_id);
+
+    sem_post(&wrt);  // Release the writer lock
+    return NULL;
+}
+
+int main() {
+    long int i;
+    sem_init(&mutex, 0, 1);  // Initialize mutex for protecting readcount
+    sem_init(&wrt, 0, 1);    // Initialize wrt semaphore for mutual exclusion
+
+    printf("\nEnter number of readers: ");
+    scanf("%d", &nrd);
+    printf("\nEnter number of writers: ");
+    scanf("%d", &nwt);
+
+    pthread_t reader_threads[nrd], writer_threads[nwt];
+
+    // Create writer threads
+    for (i = 0; i < nwt; i++) {
+        int *id = malloc(sizeof(int));
+        *id = i + 1;
+        pthread_create(&writer_threads[i], NULL, writer_thr, (void *)id);
+    }
+
+    // Create reader threads
+    for (i = 0; i < nrd; i++) {
+        int *id = malloc(sizeof(int));
+        *id = i + 1;
+        pthread_create(&reader_threads[i], NULL, reader_thr, (void *)id);
+    }
+
+    // Join all reader threads
+    for (i = 0; i < nrd; i++) {
+        pthread_join(reader_threads[i], NULL);
+    }
+
+    // Join all writer threads
+    for (i = 0; i < nwt; i++) {
+        pthread_join(writer_threads[i], NULL);
+    }
+
+    // Destroy semaphores
+    sem_destroy(&wrt);
+    sem_destroy(&mutex);
+
+    return 0;
+}
